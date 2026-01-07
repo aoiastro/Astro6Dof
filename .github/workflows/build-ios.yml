@@ -1,0 +1,49 @@
+name: Build iOS
+
+on:
+  push:
+    branches: [master]      # master ブランチ限定
+  workflow_dispatch:         # 手動実行も可能
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Install Xcode Command Line Tools
+        run: |
+          sudo xcode-select --switch /Applications/Xcode.app
+          sudo xcodebuild -runFirstLaunch
+
+      - name: Build Xcode Project
+        run: |
+          # ルートにある xcodeproj を指定
+          # archive 用の DerivedData を指定して exit 65 回避
+          xcodebuild -project Unity-iPhone.xcodeproj \
+                     -scheme Unity-iPhone \
+                     -configuration Release \
+                     -archivePath build/Unity-iPhone.xcarchive \
+                     -derivedDataPath build/DerivedData \
+                     CODE_SIGN_IDENTITY="" \
+                     CODE_SIGNING_REQUIRED=NO \
+                     CODE_SIGNING_ALLOWED=NO \
+                     LD_RUNPATH_SEARCH_PATHS="@executable_path/Frameworks" \
+                     FRAMEWORK_SEARCH_PATHS="$(PROJECT_DIR)/UnityFramework" \
+                     ONLY_ACTIVE_ARCH=NO \
+                     archive -quiet
+
+          # unsigned IPA 出力
+          xcodebuild -exportArchive \
+                     -archivePath build/Unity-iPhone.xcarchive \
+                     -exportPath build/IPA \
+                     -exportOptionsPlist ExportOptions.plist \
+                     -quiet
+
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Unity-iPhone-IPA
+          path: build/IPA
